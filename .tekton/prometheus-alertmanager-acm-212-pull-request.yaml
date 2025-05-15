@@ -459,7 +459,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-prometheus-alertmanager-acm-212
   workspaces:
   - name: workspace
     volumeClaimTemplate:
