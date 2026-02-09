@@ -31,13 +31,13 @@ ENTRYPOINT [ "/bin/alertmanager" ]
 CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
              "--storage.path=/alertmanager" ]
 
-LABEL com.redhat.component="prometheus-alermanager" \
-  name="rhacm2/prometheus-alermanager-rhel9" \
+LABEL com.redhat.component="prometheus-alertmanager" \
+  name="rhacm2/prometheus-alertmanager-rhel9" \
   cpe="cpe:/a:redhat:acm:2.13::el9" \
-  summary="prometheus-alermanager" \
+  summary="prometheus-alertmanager" \
   io.openshift.expose-services="" \
   io.openshift.tags="data,images" \
-  io.k8s.display-name="prometheus-alermanager" \
+  io.k8s.display-name="prometheus-alertmanager" \
   maintainer="" \
-  description="prometheus-alermanager" \
-  io.k8s.description="prometheus-alermanager"
+  description="prometheus-alertmanager" \
+  io.k8s.description="prometheus-alertmanager"
