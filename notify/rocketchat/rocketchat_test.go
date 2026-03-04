@@ -14,7 +14,6 @@
 package rocketchat
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -42,12 +41,12 @@ func TestRocketchatRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
 func TestGettingRocketchatTokenFromFile(t *testing.T) {
-	f, err := os.CreateTemp("", "rocketchat_test")
+	f, err := os.CreateTemp(t.TempDir(), "rocketchat_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString("secret")
 	require.NoError(t, err, "writing to temp file failed")

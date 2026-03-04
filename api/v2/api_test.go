@@ -16,7 +16,6 @@ package v2
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,15 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 
 	// Test ensures this method call does not panic.
-	status := api.getStatusHandler(general_ops.GetStatusParams{}).(*general_ops.GetStatusOK)
+	status := api.getStatusHandler(
+		general_ops.GetStatusParams{
+			HTTPRequest: httptest.NewRequest(
+				"GET",
+				"/api/v2/status",
+				nil,
+			),
+		},
+	).(*general_ops.GetStatusOK)
 
 	c := status.Payload.Cluster
 
@@ -85,7 +93,7 @@ var (
 )
 
 func newSilences(t *testing.T) *silence.Silences {
-	silences, err := silence.New(silence.Options{})
+	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
 	return silences
@@ -160,7 +168,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -168,8 +176,8 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	for i, tc := range []struct {
 		sid          string
@@ -206,7 +214,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		responder.WriteResponse(w, p)
 		body, _ := io.ReadAll(w.Result().Body)
 
-		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+		require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
 	}
 }
 
@@ -222,7 +230,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -230,8 +238,8 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	t.Run("Silences CRUD", func(t *testing.T) {
 		for i, tc := range []struct {
@@ -280,7 +288,7 @@ func TestPostSilencesHandler(t *testing.T) {
 				w := httptest.NewRecorder()
 				postSilences(t, w, api.postSilencesHandler, sil)
 				body, _ := io.ReadAll(w.Result().Body)
-				require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+				require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
 			})
 		}
 	})

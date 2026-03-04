@@ -16,7 +16,6 @@ package telegram
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -82,14 +81,14 @@ func TestTelegramRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
 func TestTelegramNotify(t *testing.T) {
 	token := "secret"
 
-	fileWithToken, err := os.CreateTemp("", "telegram-bot-token")
+	fileWithToken, err := os.CreateTemp(t.TempDir(), "telegram-bot-token")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = fileWithToken.WriteString(token)
 	require.NoError(t, err, "writing to temp file failed")

@@ -16,7 +16,6 @@ package victorops
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -97,7 +96,7 @@ func TestVictorOpsRetry(t *testing.T) {
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -122,7 +121,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 
 func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 	key := "key"
-	f, err := os.CreateTemp("", "victorops_test")
+	f, err := os.CreateTemp(t.TempDir(), "victorops_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -147,7 +146,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 func TestVictorOpsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
