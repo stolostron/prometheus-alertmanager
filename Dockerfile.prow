@@ -11,6 +11,8 @@ RUN go install github.com/prometheus/promu@v0.17.0 && promu -c .promu-cgo.yml bu
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
+LABEL io.prometheus.image.variant="prow"
+
 COPY --from=builder /workspace/amtool /bin/amtool
 COPY --from=builder /workspace/alertmanager /bin/alertmanager
 COPY --from=builder /workspace/examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml

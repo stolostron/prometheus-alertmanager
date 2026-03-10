@@ -16,7 +16,6 @@ package jira
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +35,18 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+func jiraStringDescription(v string) *jiraDescription {
+	return &jiraDescription{StringDescription: stringPtr(v)}
+}
+
+func stringPtr(v string) *string {
+	return &v
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
 
 func TestJiraRetry(t *testing.T) {
 	notifier, err := New(
@@ -58,7 +69,7 @@ func TestJiraRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
 
@@ -82,7 +93,7 @@ func TestSearchExistingIssue(t *testing.T) {
 				return
 			}
 			require.Equal(t, expectedJQL, data.JQL)
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
@@ -101,23 +112,48 @@ func TestSearchExistingIssue(t *testing.T) {
 		title         string
 		cfg           *config.JiraConfig
 		groupKey      string
+		firing        bool
 		expectedJQL   string
 		expectedIssue *issue
 		expectedErr   bool
 		expectedRetry bool
 	}{
 		{
-			title: "search existing issue with project template",
+			title: "search existing issue with project template for firing alert",
 			cfg: &config.JiraConfig{
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Project:     `{{ .CommonLabels.project }}`,
 			},
 			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue with reopen duration for firing alert",
+			cfg: &config.JiraConfig{
+				Summary:          config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:      config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Project:          `{{ .CommonLabels.project }}`,
+				ReopenDuration:   model.Duration(60 * time.Minute),
+				ReopenTransition: "REOPEN",
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `(resolutiondate is EMPTY OR resolutiondate >= -60m) and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue for resolved alert",
+			cfg: &config.JiraConfig{
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			firing:      false,
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			expectedJQL = tc.expectedJQL
 			tc.cfg.APIURL = &config.URL{URL: u}
@@ -148,31 +184,164 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, true, tmplTextFunc)
+			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.EqualValues(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedIssue, issue)
 			require.Equal(t, tc.expectedRetry, retry)
 		})
 	}
 }
 
+func TestPrepareSearchRequest(t *testing.T) {
+	for _, tc := range []struct {
+		title           string
+		cfg             *config.JiraConfig
+		jql             string
+		expectedBody    any
+		expectedURL     string
+		expectedURLPath string
+	}{
+		{
+			title: "cloud API type",
+			cfg: &config.JiraConfig{
+				APIType: "cloud",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type with atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type without atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix but datacenter api type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "datacenter API type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			requestBody, searchURL := notifier.prepareSearchRequest(tc.jql)
+
+			require.Equal(t, tc.expectedURL, searchURL)
+			require.Equal(t, tc.expectedBody, requestBody)
+			// Verify that the original APIURL.Path is not modified
+			require.Equal(t, tc.expectedURLPath, notifier.conf.APIURL.Path)
+		})
+	}
+}
+
 func TestJiraTemplating(t *testing.T) {
+	var capturedBody map[string]any
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/search":
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
 			out := make(map[string]any)
-			err := dec.Decode(&out)
-			if err != nil {
+			if err := dec.Decode(&out); err != nil {
 				panic(err)
 			}
+			capturedBody = out
 		}
 	}))
 	defer srv.Close()
@@ -182,23 +351,30 @@ func TestJiraTemplating(t *testing.T) {
 		title string
 		cfg   *config.JiraConfig
 
-		retry  bool
-		errMsg string
+		retry              bool
+		errMsg             string
+		expectedFieldKey   string
+		expectedFieldValue any
 	}{
 		{
-			title: "full-blown message",
+			title: "full-blown message with templated custom field",
 			cfg: &config.JiraConfig{
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Fields: map[string]any{
+					"customfield_14400": `{{ template "jira.host" . }}`,
+				},
 			},
-			retry: false,
+			retry:              false,
+			expectedFieldKey:   "customfield_14400",
+			expectedFieldValue: "host1.example.com",
 		},
 		{
 			title: "template project",
 			cfg: &config.JiraConfig{
 				Project:     `{{ .CommonLabels.lbl1 }}`,
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 			},
 			retry: false,
 		},
@@ -206,52 +382,63 @@ func TestJiraTemplating(t *testing.T) {
 			title: "template issue type",
 			cfg: &config.JiraConfig{
 				IssueType:   `{{ .CommonLabels.lbl1 }}`,
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 			},
 			retry: false,
 		},
 		{
 			title: "summary with templating errors",
 			cfg: &config.JiraConfig{
-				Summary: "{{ ",
+				Summary: config.JiraFieldConfig{Template: "{{ "},
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 		{
 			title: "description with templating errors",
 			cfg: &config.JiraConfig{
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: "{{ ",
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: "{{ "},
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 		{
 			title: "priority with templating errors",
 			cfg: &config.JiraConfig{
-				Summary:     `{{ template "jira.default.summary" . }}`,
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Priority:    "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
+			capturedBody = nil
+
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
+			// Add the jira.host template just for this test
+			if tc.expectedFieldKey == "customfield_14400" {
+				err = pd.tmpl.Parse(strings.NewReader(`{{ define "jira.host" }}{{ .CommonLabels.hostname }}{{ end }}`))
+				require.NoError(t, err)
+			}
+
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupLabels(ctx, model.LabelSet{
+				"lbl1":     "val1",
+				"hostname": "host1.example.com",
+			})
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
-							"lbl1": "val1",
+							"lbl1":     "val1",
+							"hostname": "host1.example.com",
 						},
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
@@ -265,6 +452,14 @@ func TestJiraTemplating(t *testing.T) {
 				require.Contains(t, err.Error(), tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
+
+			// Verify that custom fields were templated correctly
+			if tc.expectedFieldKey != "" {
+				require.NotNil(t, capturedBody, "expected request body")
+				fields, ok := capturedBody["fields"].(map[string]any)
+				require.True(t, ok, "fields should be a map")
+				require.Equal(t, tc.expectedFieldValue, fields[tc.expectedFieldKey])
+			}
 		})
 	}
 }
@@ -284,8 +479,8 @@ func TestJiraNotify(t *testing.T) {
 		{
 			title: "create new issue",
 			cfg: &config.JiraConfig{
-				Summary:           `{{ template "jira.default.summary" . }}`,
-				Description:       `{{ template "jira.default.description" . }}`,
+				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -307,14 +502,13 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1 critical)",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -325,10 +519,16 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "",
 		},
 		{
-			title: "create new issue with template project and issue type",
+			title: "update existing issue with disabled summary and description",
 			cfg: &config.JiraConfig{
-				Summary:           `{{ template "jira.default.summary" . }}`,
-				Description:       `{{ template "jira.default.description" . }}`,
+				Summary: config.JiraFieldConfig{
+					Template:     `{{ template "jira.default.summary" . }}`,
+					EnableUpdate: boolPtr(false),
+				},
+				Description: config.JiraFieldConfig{
+					Template:     `{{ template "jira.default.description" . }}`,
+					EnableUpdate: boolPtr(false),
+				},
 				IssueType:         "{{ .CommonLabels.issue_type }}",
 				Project:           "{{ .CommonLabels.project }}",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -352,14 +552,78 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
+				Issues: []issue{
+					{
+						Key: "MONITORING-1",
+						Fields: &issueFields{
+							Summary:     stringPtr("Original Summary"),
+							Description: jiraStringDescription("Original Description"),
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "MONITORING-1",
+				Fields: &issueFields{
+					// Summary and Description should NOT be present in the update request
+					Issuetype: &idNameValue{Name: "MINOR"},
+					Labels:    []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
+					Project:   &issueProject{Key: "MONITORING"},
+					Priority:  &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				// Verify that summary and description are NOT in the update request
+				_, hasSummary := issue["summary"]
+				_, hasDescription := issue["description"]
+				require.False(t, hasSummary, "summary should not be present in update request")
+				require.False(t, hasDescription, "description should not be present in update request")
+			},
+			errMsg: "",
+		},
+		{
+			title: "create new issue with template project and issue type",
+			cfg: &config.JiraConfig{
+				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:         "{{ .CommonLabels.issue_type }}",
+				Project:           "{{ .CommonLabels.project }}",
+				Priority:          `{{ template "jira.default.priority" . }}`,
+				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
 				Issues: []issue{},
 			},
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1 MINOR MONITORING critical)",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     stringPtr("[FIRING:1] test (vm1 MINOR MONITORING critical)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "MINOR"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "MONITORING"},
@@ -372,8 +636,8 @@ func TestJiraNotify(t *testing.T) {
 		{
 			title: "create new issue with custom field and too long summary",
 			cfg: &config.JiraConfig{
-				Summary:     strings.Repeat("A", maxSummaryLenRunes+10),
-				Description: `{{ template "jira.default.description" . }}`,
+				Summary:     config.JiraFieldConfig{Template: strings.Repeat("A", maxSummaryLenRunes+10)},
+				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:   "Incident",
 				Project:     "OPS",
 				Priority:    `{{ template "jira.default.priority" . }}`,
@@ -388,6 +652,8 @@ func TestJiraNotify(t *testing.T) {
 					"customfield_10006": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
 					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
 					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
+					"customfield_10009": []map[any]any{{1: 0}, {1.0: 1}, {"a": []any{2}}},
+					"customfield_10010": []any{map[any]any{1: 0}, []int{3}},
 				},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
@@ -405,14 +671,13 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     strings.Repeat("A", maxSummaryLenRunes-1) + "…",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     stringPtr(strings.Repeat("A", maxSummaryLenRunes-1) + "…"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -427,14 +692,17 @@ func TestJiraNotify(t *testing.T) {
 				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": "green"}}, issue["customfield_10006"])
 				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": float64(0)}}, issue["customfield_10007"])
 				require.Equal(t, []any{map[string]any{"value": float64(0)}, map[string]any{"value": float64(1)}, map[string]any{"value": float64(2)}}, issue["customfield_10008"])
+				require.Equal(t, []any([]any{map[string]any{}, map[string]any{}, map[string]any{"a": []any{2.0}}}),
+					issue["customfield_10009"])
+				require.Equal(t, []any{map[string]any{}, []any{3.0}}, issue["customfield_10010"])
 			},
 			errMsg: "",
 		},
 		{
 			title: "reopen issue",
 			cfg: &config.JiraConfig{
-				Summary:           `{{ template "jira.default.summary" . }}`,
-				Description:       `{{ template "jira.default.description" . }}`,
+				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -455,7 +723,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-1",
@@ -475,8 +742,8 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1)",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     stringPtr("[FIRING:1] test (vm1)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -489,8 +756,8 @@ func TestJiraNotify(t *testing.T) {
 		{
 			title: "error resolve transition not found",
 			cfg: &config.JiraConfig{
-				Summary:           `{{ template "jira.default.summary" . }}`,
-				Description:       `{{ template "jira.default.description" . }}`,
+				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -511,7 +778,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",
@@ -531,8 +797,8 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[RESOLVED] test (vm1)",
-					Description: "\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n",
+					Summary:     stringPtr("[RESOLVED] test (vm1)"),
+					Description: jiraStringDescription("\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -544,8 +810,8 @@ func TestJiraNotify(t *testing.T) {
 		{
 			title: "error reopen transition not found",
 			cfg: &config.JiraConfig{
-				Summary:           `{{ template "jira.default.summary" . }}`,
-				Description:       `{{ template "jira.default.description" . }}`,
+				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -566,7 +832,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",
@@ -586,8 +851,8 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1)",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     stringPtr("[FIRING:1] test (vm1)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -597,8 +862,6 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
@@ -687,9 +950,27 @@ func TestJiraNotify(t *testing.T) {
 					}
 
 					return
+				case "/issue/MONITORING-1":
+					body, err := io.ReadAll(r.Body)
+					if err != nil {
+						panic(err)
+					}
+
+					var raw map[string]any
+					if err := json.Unmarshal(body, &raw); err != nil {
+						panic(err)
+					}
+
+					if fields, ok := raw["fields"].(map[string]any); ok {
+						tc.customFieldAssetFn(t, fields)
+					}
+
+					w.WriteHeader(http.StatusNoContent)
+					return
 				case "/issue/OPS-1":
 				case "/issue/OPS-2":
 				case "/issue/OPS-3":
+				case "/issue/OPS-4":
 					fallthrough
 				case "/issue":
 					body, err := io.ReadAll(r.Body)
@@ -937,8 +1218,6 @@ func TestJiraPriority(t *testing.T) {
 			"Medium",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
 			t.Parallel()
 			u, err := url.Parse("http://example.com/")
@@ -963,6 +1242,86 @@ func TestJiraPriority(t *testing.T) {
 			priority, err := tmplTextFunc(`{{ template "jira.default.priority" . }}`)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedPriority, priority)
+		})
+	}
+}
+
+func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		descriptionTemplate string
+		expectErrSubstring  string
+	}{
+		{
+			name:                "valid JSON description",
+			descriptionTemplate: `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"hello"}]}]}`,
+		},
+		{
+			name:                "invalid JSON description",
+			descriptionTemplate: `not-json`,
+			expectErrSubstring:  "invalid JSON for API v3",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.JiraConfig{
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: tc.descriptionTemplate},
+				IssueType:   "Incident",
+				Project:     "OPS",
+				Labels:      []string{"alertmanager"},
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/3",
+					},
+				},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			}
+
+			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			ctx := context.Background()
+			groupID := "1"
+			ctx = notify.WithGroupKey(ctx, groupID)
+			ctx = notify.WithGroupLabels(ctx, alert.Labels)
+
+			alerts := []*types.Alert{alert}
+			logger := notifier.logger.With("group_key", groupID)
+			data := notify.GetTemplateData(ctx, notifier.tmpl, alerts, logger)
+
+			var tmplErr error
+			tmplText := notify.TmplText(notifier.tmpl, data, &tmplErr)
+			tmplTextFunc := func(tmpl string) (string, error) {
+				return tmplText(tmpl), tmplErr
+			}
+
+			issue, err := notifier.prepareIssueRequestBody(ctx, logger, groupID, tmplTextFunc)
+			if tc.expectErrSubstring != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectErrSubstring)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, issue.Fields)
+
+			require.NotNil(t, issue.Fields.Description)
+			require.JSONEq(t, tc.descriptionTemplate, string(issue.Fields.Description.RawJSONDescription))
 		})
 	}
 }
