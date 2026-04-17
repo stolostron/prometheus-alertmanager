@@ -33,7 +33,7 @@ CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
 
 LABEL com.redhat.component="prometheus-alertmanager" \
   name="rhacm2/prometheus-alertmanager-rhel9" \
-  cpe="cpe:/a:redhat:acm:2.17::el9" \
+  cpe="cpe:/a:redhat:acm:5.0::el9" \
   summary="prometheus-alertmanager" \
   io.openshift.expose-services="" \
   io.openshift.tags="data,images" \
