@@ -1,0 +1,43 @@
+# Copyright Contributors to the Open Cluster Management project
+# Licensed under the Apache License 2.0
+
+FROM registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:v1.25.8 AS builder
+
+WORKDIR /workspace
+COPY . .
+
+RUN cd promu && go build -mod=mod -o /cachi2/output/deps/gomod/bin/promu
+
+WORKDIR /workspace
+# adding the cgo flag here to not break the architecture CI builds
+RUN go mod vendor && CGO_ENABLED=1 GOEXPERIMENT=strictfipsruntime /cachi2/output/deps/gomod/bin/promu -c .promu-cgo.yml build -v --cgo --prefix ./
+
+FROM registry-proxy.engineering.redhat.com/ubi9/ubi-minimal:latest
+
+COPY --from=builder /workspace/amtool /bin/amtool
+COPY --from=builder /workspace/alertmanager /bin/alertmanager
+COPY --from=builder /workspace/examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
+
+RUN mkdir -p /alertmanager && \
+    chown -R nobody:nobody etc/alertmanager /alertmanager
+
+COPY template /alertmanager/template/
+
+USER       nobody
+EXPOSE     9093
+VOLUME     [ "/alertmanager" ]
+WORKDIR    /alertmanager
+ENTRYPOINT [ "/bin/alertmanager" ]
+CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
+             "--storage.path=/alertmanager" ]
+
+LABEL com.redhat.component="prometheus-alertmanager" \
+  name="rhacm2/prometheus-alertmanager-rhel9" \
+  cpe="cpe:/a:redhat:acm:2.16::el9" \
+  summary="prometheus-alertmanager" \
+  io.openshift.expose-services="" \
+  io.openshift.tags="data,images" \
+  io.k8s.display-name="prometheus-alertmanager" \
+  maintainer="" \
+  description="prometheus-alertmanager" \
+  io.k8s.description="prometheus-alertmanager"
