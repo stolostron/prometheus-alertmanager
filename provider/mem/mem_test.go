@@ -155,7 +155,7 @@ func TestAlertsPut(t *testing.T) {
 		}
 		if !alertsEqual(res, a) {
 			t.Errorf("Unexpected alert: %d", i)
-			t.Fatalf(pretty.Compare(res, a))
+			t.Fatalf("%s", pretty.Compare(res, a))
 		}
 	}
 }
@@ -236,7 +236,7 @@ func TestAlertsSubscribe(t *testing.T) {
 	close(fatalc)
 	fatal, ok := <-fatalc
 	if ok {
-		t.Fatalf(fatal)
+		t.Fatalf("%s", fatal)
 	}
 }
 
