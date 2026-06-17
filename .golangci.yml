@@ -64,6 +64,9 @@ linters:
       - linters:
           - errcheck
         path: _test.go
+      - linters:
+          - staticcheck
+        text: "QF1008"
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
