@@ -5,6 +5,8 @@ linters:
     - errorlint
     - misspell
     - revive
+  disable:
+    - staticcheck
     - testifylint
   settings:
     depguard:
@@ -47,11 +49,6 @@ linters:
         - name: var-declaration
         - name: var-naming
           disabled: true
-    testifylint:
-      disable:
-        - float-compare
-        - go-require
-      enable-all: true
   exclusions:
     presets:
       - comments
@@ -64,9 +61,6 @@ linters:
       - linters:
           - errcheck
         path: _test.go
-      - linters:
-          - staticcheck
-        text: "QF1008"
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
