@@ -11,7 +11,7 @@ RUN cd promu && go build -mod=mod -o /cachi2/output/deps/gomod/bin/promu
 WORKDIR /workspace
 RUN go mod vendor && /cachi2/output/deps/gomod/bin/promu -c .promu-cgo.yml build -v --cgo --prefix ./
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM registry.access.redhat.com/hi/core-runtime:latest-openssl-fips
 
 COPY --from=builder /workspace/amtool /bin/amtool
 COPY --from=builder /workspace/alertmanager /bin/alertmanager
