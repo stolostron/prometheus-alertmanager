@@ -575,7 +575,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 				cfg.Hello = "invalid hello string"
 			},
 
-			errMsg: "501 Error",
+			errMsg: "501 \"Error",
 			retry:  true,
 		},
 	} {
@@ -733,7 +733,7 @@ func TestEmailRejected(t *testing.T) {
 
 	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
+	require.ErrorContains(t, err, "501 \"5.5.4 Rejected!")
 	require.True(t, retry)
 	require.NoError(t, srv.Shutdown(ctx))
 
