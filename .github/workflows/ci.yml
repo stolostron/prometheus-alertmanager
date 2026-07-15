@@ -17,7 +17,7 @@ jobs:
       - run: git diff --exit-code
 
   build:
-    name: Build Alertmanager for common architectures
+    name: Build Alertmanager builds for common architectures
     runs-on: ubuntu-latest
     strategy:
       matrix:
