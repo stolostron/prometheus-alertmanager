@@ -82,8 +82,12 @@ linters-settings:
       - name: errorf
   testifylint:
     disable:
+      - contains
+      - encoded-compare
       - float-compare
+      - formatter
       - go-require
+      - useless-assert
     enable:
       - bool-compare
       - compares
