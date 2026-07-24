@@ -1,4 +1,4 @@
-// Copyright 2023 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +19,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/notify/webhook"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 )
@@ -36,13 +39,13 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 					},
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
-						NotifierConfig: config.NotifierConfig{
+						NotifierConfig: amcommoncfg.NotifierConfig{
 							VSendResolved: true,
 						},
 					},
@@ -56,7 +59,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{
 							TLSConfig: commoncfg.TLSConfig{

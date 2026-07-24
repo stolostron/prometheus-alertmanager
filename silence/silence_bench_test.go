@@ -1,4 +1,4 @@
-// Copyright 2024 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -27,9 +27,10 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface for
@@ -93,8 +94,8 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 					Name:    "foo",
 					Pattern: "bar",
 				}},
-				StartsAt: now,
-				EndsAt:   now.Add(time.Minute),
+				StartsAt: timestamppb.New(now),
+				EndsAt:   timestamppb.New(now.Add(time.Minute)),
 			}
 			matchingCreated++
 		} else {
@@ -105,26 +106,19 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 					Name:    "job",
 					Pattern: "job" + strconv.Itoa(i),
 				}},
-				StartsAt: now,
-				EndsAt:   now.Add(time.Minute),
+				StartsAt: timestamppb.New(now),
+				EndsAt:   timestamppb.New(now.Add(time.Minute)),
 			}
 		}
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(silences, m, promslog.NewNopLogger())
+	s := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	for b.Loop() {
 		s.Mutes(context.Background(), model.LabelSet{"foo": "bar"})
 	}
 	b.StopTimer()
-
-	// The alert should be marked as silenced for each matching silence.
-	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
-	require.True(b, silenced || matchingSilences == 0)
-	require.Empty(b, pendingIDs)
-	require.Len(b, activeIDs, matchingSilences)
 }
 
 // BenchmarkMutesIncremental tests the incremental query optimization when a small
@@ -170,8 +164,8 @@ func BenchmarkMutesIncremental(b *testing.B) {
 								Pattern: "instance1",
 							},
 						},
-						StartsAt: now,
-						EndsAt:   now.Add(time.Hour),
+						StartsAt: timestamppb.New(now),
+						EndsAt:   timestamppb.New(now.Add(time.Hour)),
 					}
 				} else {
 					s = &silencepb.Silence{
@@ -180,17 +174,16 @@ func BenchmarkMutesIncremental(b *testing.B) {
 							Name:    "job",
 							Pattern: "job" + strconv.Itoa(i),
 						}},
-						StartsAt: now,
-						EndsAt:   now.Add(time.Hour),
+						StartsAt: timestamppb.New(now),
+						EndsAt:   timestamppb.New(now.Add(time.Hour)),
 					}
 				}
 				require.NoError(b, silences.Set(b.Context(), s))
 			}
 
-			marker := types.NewMarker(prometheus.NewRegistry())
-			silencer := NewSilencer(silences, marker, promslog.NewNopLogger())
+			silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
-			// Warm up: Establish marker state (markerVersion = current version)
+			// Warm up: Establish cache state (cachedEntry.version = current version)
 			// This simulates a system that has been running for a while
 			lset := model.LabelSet{"service": "test", "instance": "instance1"}
 			silencer.Mutes(context.Background(), lset)
@@ -224,8 +217,8 @@ func BenchmarkMutesIncremental(b *testing.B) {
 									Pattern: "instance1",
 								},
 							},
-							StartsAt: now,
-							EndsAt:   now.Add(time.Hour),
+							StartsAt: timestamppb.New(now),
+							EndsAt:   timestamppb.New(now.Add(time.Hour)),
 						}
 					} else {
 						// Most don't match
@@ -235,8 +228,8 @@ func BenchmarkMutesIncremental(b *testing.B) {
 								Name:    "instance",
 								Pattern: "host" + strconv.Itoa(iteration),
 							}},
-							StartsAt: now,
-							EndsAt:   now.Add(time.Hour),
+							StartsAt: timestamppb.New(now),
+							EndsAt:   timestamppb.New(now.Add(time.Hour)),
 						}
 					}
 					require.NoError(b, silences.Set(b.Context(), s))
@@ -292,9 +285,9 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 				{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 				{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 			},
-			StartsAt:  now.Add(-time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
+			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+			EndsAt:    timestamppb.New(now.Add(time.Hour)),
+			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}
 		require.NoError(b, s.Set(b.Context(), sil))
 	}
@@ -302,7 +295,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	// Run things once to populate the matcherCache.
 	sils, _, err := s.Query(
 		b.Context(),
-		QState(types.SilenceStateActive),
+		QState(SilenceStateActive),
 		QMatches(lset),
 	)
 	require.NoError(b, err)
@@ -311,7 +304,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	for b.Loop() {
 		sils, _, err := s.Query(
 			b.Context(),
-			QState(types.SilenceStateActive),
+			QState(SilenceStateActive),
 			QMatches(lset),
 		)
 		require.NoError(b, err)
@@ -359,9 +352,9 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 				{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 				{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 			},
-			StartsAt:  now.Add(-time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
+			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+			EndsAt:    timestamppb.New(now.Add(time.Hour)),
+			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}
 		require.NoError(b, s.Set(b.Context(), sil))
 	}
@@ -369,7 +362,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	// Verify initial query works
 	sils, _, err := s.Query(
 		b.Context(),
-		QState(types.SilenceStateActive),
+		QState(SilenceStateActive),
 		QMatches(lset),
 	)
 	require.NoError(b, err)
@@ -382,7 +375,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 		for pb.Next() {
 			sils, _, err := s.Query(
 				b.Context(),
-				QState(types.SilenceStateActive),
+				QState(SilenceStateActive),
 				QMatches(lset),
 			)
 			if err != nil {
@@ -440,9 +433,9 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 				{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 				{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 			},
-			StartsAt:  now.Add(-time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
+			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+			EndsAt:    timestamppb.New(now.Add(time.Hour)),
+			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}
 		require.NoError(b, s.Set(b.Context(), sil))
 	}
@@ -475,9 +468,9 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 						{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 						{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 					},
-					StartsAt:  now.Add(-time.Minute),
-					EndsAt:    now.Add(time.Hour),
-					UpdatedAt: now.Add(-time.Hour),
+					StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+					EndsAt:    timestamppb.New(now.Add(time.Hour)),
+					UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 				}
 				if err := s.Set(b.Context(), sil); err != nil {
 					b.Error(err)
@@ -486,7 +479,7 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 				// Query silences (the common operation)
 				_, _, err := s.Query(
 					b.Context(),
-					QState(types.SilenceStateActive),
+					QState(SilenceStateActive),
 					QMatches(lset),
 				)
 				if err != nil {
@@ -527,14 +520,13 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 				Name:    "foo",
 				Pattern: "bar",
 			}},
-			StartsAt: now,
-			EndsAt:   now.Add(time.Minute),
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Minute)),
 		}
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	silencer := NewSilencer(silences, m, promslog.NewNopLogger())
+	silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	b.ResetTimer()
 
@@ -586,11 +578,11 @@ func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
 		Name:    "foo",
 		Pattern: "bar",
 	}}
-	startTime := now.Add(-2 * time.Hour)
-	updateTime := now.Add(-2 * time.Hour)
-	endTime := now.Add(-time.Hour)
-	expireTime := now.Add(-time.Minute)
-	activeTime := now.Add(2 * time.Hour)
+	startTime := timestamppb.New(now.Add(-2 * time.Hour))
+	updateTime := timestamppb.New(now.Add(-2 * time.Hour))
+	endTime := timestamppb.New(now.Add(-time.Hour))
+	expireTime := timestamppb.New(now.Add(-time.Minute))
+	activeTime := timestamppb.New(now.Add(2 * time.Hour))
 
 	sils := make([]*silencepb.MeshSilence, 0, numSilences)
 
