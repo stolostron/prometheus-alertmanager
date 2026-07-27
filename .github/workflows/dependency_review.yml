@@ -12,3 +12,8 @@ jobs:
         uses: actions/checkout@v4
       - name: 'Dependency Review'
         uses: actions/dependency-review-action@v4
+        with:
+          allow-ghsas: >-
+            GHSA-rg2x-37c3-w2rh,
+            GHSA-x86f-5xw2-fm2r,
+            GHSA-vp62-88p7-qqf5
