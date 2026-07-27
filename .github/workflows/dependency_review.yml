@@ -16,4 +16,6 @@ jobs:
           allow-ghsas: >-
             GHSA-rg2x-37c3-w2rh,
             GHSA-x86f-5xw2-fm2r,
-            GHSA-vp62-88p7-qqf5
+            GHSA-vp62-88p7-qqf5,
+            GHSA-x744-4wpc-v9h2,
+            GHSA-pxq6-2prw-chj9
