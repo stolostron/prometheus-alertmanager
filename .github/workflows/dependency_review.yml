@@ -18,4 +18,11 @@ jobs:
             GHSA-x86f-5xw2-fm2r,
             GHSA-vp62-88p7-qqf5,
             GHSA-x744-4wpc-v9h2,
-            GHSA-pxq6-2prw-chj9
+            GHSA-pxq6-2prw-chj9,
+            GHSA-8x6r-g9mw-2r78,
+            GHSA-chx6-hx7r-mcp5,
+            GHSA-qwww-vcr4-c8h2,
+            GHSA-337j-9hxr-rhxg,
+            GHSA-h8fp-f39c-q6mh,
+            GHSA-wrjc-x8rr-h8h6,
+            GHSA-84g9-w2xq-vcv6
