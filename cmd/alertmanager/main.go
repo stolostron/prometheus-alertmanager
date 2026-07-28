@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -43,15 +44,19 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
-	"go.uber.org/automaxprocs/maxprocs"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/config/receiver"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/httpserver"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
@@ -60,7 +65,6 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
 
@@ -142,6 +146,7 @@ func run() int {
 		maintenanceInterval         = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
 		maxSilences                 = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
+		silenceLogging              = kingpin.Flag("log.silences", "Enable logging silences. If it is enabled, the status change of silence will be logged").Bool()
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 		perAlertNameLimit           = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
@@ -219,15 +224,6 @@ func run() int {
 		}
 	}
 
-	if ff.EnableAutoGOMAXPROCS() {
-		l := func(format string, a ...any) {
-			logger.Info("automaxprocs", "msg", fmt.Sprintf(strings.TrimPrefix(format, "maxprocs: "), a...))
-		}
-		if _, err := maxprocs.Set(maxprocs.Logger(l)); err != nil {
-			logger.Warn("Failed to set GOMAXPROCS automatically", "err", err)
-		}
-	}
-
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
 		logger.Error("Unable to create data directory", "err", err)
@@ -269,6 +265,39 @@ func run() int {
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 
+	// Load config once for both event recorder initialization and the first
+	// coordinator apply.  Subsequent reloads (SIGHUP, /-/reload) go
+	// through configCoordinator.Reload() which reads the file again.
+	initialConf, err := config.LoadFile(*configFile)
+	if err != nil {
+		logger.Error("error loading configuration file", "err", err)
+		return 1
+	}
+
+	hostname, _ := os.Hostname()
+	var eventRec eventrecorder.Recorder
+	if ff.EnableEventRecorder() {
+		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), prometheus.DefaultRegisterer)
+	}
+	defer eventRec.Close()
+
+	recordCtx := eventrecorder.WithEventRecording(context.Background())
+	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
+		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
+			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
+				Version:      version.Version,
+				BuildContext: version.BuildContext(),
+			},
+		},
+	})
+	defer func() {
+		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
+			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
+				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
+			},
+		})
+	}()
+
 	notificationLogOpts := nflog.Options{
 		SnapshotFile: filepath.Join(*dataDir, "nflog"),
 		Retention:    *retention,
@@ -286,13 +315,11 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
-	marker := types.NewMarker(prometheus.DefaultRegisterer)
+	marker := marker.NewGroupMarker()
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
@@ -301,8 +328,10 @@ func run() int {
 			MaxSilences:         func() int { return *maxSilences },
 			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
 		},
-		Logger:  logger.With("component", "silences"),
-		Metrics: prometheus.DefaultRegisterer,
+		Logger:        logger.With("component", "silences"),
+		Metrics:       prometheus.DefaultRegisterer,
+		Logging:       *silenceLogging,
+		EventRecorder: eventRec,
 	}
 
 	silences, err := silence.New(silenceOpts)
@@ -316,16 +345,16 @@ func run() int {
 	}
 
 	// Start providers before router potentially sends updates.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	defer func() {
 		close(stopc)
 		wg.Wait()
 	}()
+
+	silencer := silence.NewSilencer(silences, logger, eventRec)
 
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
@@ -344,15 +373,16 @@ func run() int {
 			}
 		}()
 		go peer.Settle(ctx, *gossipInterval*10)
+		eventRec.SetClusterPeer(peer)
 	}
 
 	alerts, err := mem.NewAlerts(
 		context.Background(),
-		marker,
 		*alertGCInterval,
 		*perAlertNameLimit,
-		nil,
+		silencer,
 		logger,
+		eventRec,
 		prometheus.DefaultRegisterer,
 		ff,
 	)
@@ -362,13 +392,13 @@ func run() int {
 	}
 	defer alerts.Close()
 
-	var disp *dispatch.Dispatcher
+	var disp atomic.Pointer[dispatch.Dispatcher]
 	defer func() {
-		disp.Stop()
+		disp.Load().Stop()
 	}()
 
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Groups(ctx, routeFilter, alertFilter)
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -382,7 +412,6 @@ func run() int {
 	api, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
-		AlertStatusFunc: marker.Status,
 		GroupMutedFunc:  marker.Muted,
 		Peer:            clusterPeer,
 		Timeout:         *httpTimeout,
@@ -418,12 +447,12 @@ func run() int {
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 
 	var (
-		inhibitor *inhibit.Inhibitor
+		inhibitor atomic.Pointer[inhibit.Inhibitor]
 		tmpl      *template.Template
 	)
 
-	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
+	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer, ff)
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff, eventRec)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,
@@ -431,6 +460,11 @@ func run() int {
 		configLogger,
 	)
 	configCoordinator.Subscribe(func(conf *config.Config) error {
+		// Reload event recorder outputs first so events emitted during
+		// the rest of this callback (e.g., by stopping the old
+		// dispatcher) go to the new outputs.
+		eventRec.ApplyConfig(conf.EventRecorder)
+
 		tmpl, err = template.FromGlobs(conf.Templates)
 		if err != nil {
 			return fmt.Errorf("failed to parse templates: %w", err)
@@ -474,11 +508,11 @@ func run() int {
 
 		intervener := timeinterval.NewIntervener(timeIntervals)
 
-		inhibitor.Stop()
-		disp.Stop()
+		inhibitor.Load().Stop()
+		disp.Load().Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
-		silencer := silence.NewSilencer(silences, marker, logger)
+		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, logger, eventRec)
+		inhibitor.Store(newInhibitor)
 
 		// An interface value that holds a nil concrete value is non-nil.
 		// Therefore we explicly pass an empty interface, to detect if the
@@ -491,7 +525,7 @@ func run() int {
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
-			inhibitor,
+			newInhibitor,
 			silencer,
 			intervener,
 			marker,
@@ -504,7 +538,7 @@ func run() int {
 		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
 		api.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-			inhibitor.Mutes(ctx, labels)
+			inhibitor.Load().Mutes(ctx, labels)
 			silencer.Mutes(ctx, labels)
 		})
 
@@ -517,6 +551,7 @@ func run() int {
 			*dispatchMaintenanceInterval,
 			nil,
 			logger,
+			eventRec,
 			dispMetrics,
 		)
 		routes.Walk(func(r *dispatch.Route) {
@@ -548,17 +583,17 @@ func run() int {
 		// first, start the inhibitor so the inhibition cache can populate
 		// wait for this to load alerts before starting the dispatcher so
 		// we don't accidentially notify for an alert that will be inhibited
-		go inhibitor.Run()
-		inhibitor.WaitForLoading()
+		go newInhibitor.Run()
+		newInhibitor.WaitForLoading()
 
 		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
 		// This ensures that the API doesn't see the new dispatcher before it finishes populating
 		// the aggrGroups
 		go newDisp.Run(startTime.Add(*DispatchStartDelay))
 		newDisp.WaitForLoading()
-		disp = newDisp
+		disp.Store(newDisp)
 
-		err = tracingManager.ApplyConfig(conf)
+		err = tracingManager.ApplyConfig(conf.TracingConfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply tracing config: %w", err)
 		}
@@ -568,7 +603,7 @@ func run() int {
 		return nil
 	})
 
-	if err := configCoordinator.Reload(); err != nil {
+	if err := configCoordinator.ApplyConfig(initialConf); err != nil {
 		return 1
 	}
 
@@ -589,7 +624,8 @@ func run() int {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	ui.Register(router)
+	httpserver.Register(router, webReload)
 
 	mux := api.Register(router, *routePrefix)
 

@@ -1,4 +1,4 @@
-import { QueryKey, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { type QueryKey, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
 // TODO(@sysadmind): Infer this from the current location.
 // We don't have a good strategy for storing global settings yet.
@@ -37,11 +37,23 @@ const createQueryFn =
   }: {
     pathPrefix: string;
     path: string;
-    params?: Record<string, string>;
+    params?: Record<string, string | string[]>;
     recordResponseTime?: (time: number) => void;
   }) =>
   async ({ signal }: { signal: AbortSignal }) => {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : '';
+    const queryParams = new URLSearchParams();
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (Array.isArray(value)) {
+          for (const v of value) {
+            queryParams.append(key, v);
+          }
+        } else {
+          queryParams.set(key, value);
+        }
+      }
+    }
+    const queryString = params ? `?${queryParams.toString()}` : '';
 
     try {
       const startTime = Date.now();
@@ -95,7 +107,7 @@ const createQueryFn =
 type QueryOptions = {
   key?: QueryKey;
   path: string;
-  params?: Record<string, string>;
+  params?: Record<string, string | string[]>;
   enabled?: boolean;
   refetchInterval?: false | number;
   recordResponseTime?: (time: number) => void;
