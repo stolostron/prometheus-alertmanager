@@ -23,7 +23,7 @@ jobs:
       matrix:
         thread: [0, 1, 2]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.0.0
+      - uses: actions/checkout@1e31de5234b9f8995739874a8ce0492dc87873e2 # v4.0.0
       - uses: prometheus/promci@fc721ff8497a70a93a881cd552b71af7fb3a9d53 # v0.5.4
       - uses: ./.github/promci/actions/build
         with:
