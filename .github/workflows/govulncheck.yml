@@ -21,4 +21,4 @@ jobs:
     name: Run govulncheck
     steps:
       - id: govulncheck
-        uses: golang/govulncheck-action@31f7c5463448f83528bd771c2d978d940080c9fd # v1.0.4-unreleased
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
