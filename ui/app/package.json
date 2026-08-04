@@ -15,7 +15,7 @@
     "vite-plugin-elm": "^3.0.1"
   },
   "dependencies": {
-    "bootstrap": "^4.6.2",
+    "bootstrap": "^5.0.0",
     "font-awesome": "^4.7.0"
   }
 }
