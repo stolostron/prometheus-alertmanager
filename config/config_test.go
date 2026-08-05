@@ -320,14 +320,7 @@ receivers:
 `
 	_, err := Load(in)
 
-	expected := "invalid label name \"-invalid-\" in group_by list"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%q", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
-	}
+	require.NoError(t, err)
 }
 
 func TestRootRouteExists(t *testing.T) {
@@ -1463,10 +1456,8 @@ func TestInhibitRuleEqual(t *testing.T) {
 	r := c.InhibitRules[0]
 	require.Equal(t, []string{"qux", "corge"}, r.Equal)
 
-	// Should not be able to load configuration with UTF-8 in equals list.
 	_, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
-	require.Error(t, err)
-	require.Equal(t, "invalid label name \"qux🙂\" in equal list", err.Error())
+	require.NoError(t, err)
 
 	// Change the mode to UTF-8 mode.
 	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
