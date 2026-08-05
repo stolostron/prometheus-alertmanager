@@ -15,7 +15,6 @@ package test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -149,9 +148,10 @@ receivers:
 	alertParams := alert.NewPostAlertsParams()
 	alertParams.Alerts = models.PostableAlerts{pa}
 
+	// With newer prometheus/common (v0.63+), UTF-8 label names are accepted
+	// by default even in classic mode, so this should succeed.
 	_, err := am.Client().Alert.PostAlerts(alertParams)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid label set"))
+	require.NoError(t, err)
 }
 
 func TestAddUTF8Silences(t *testing.T) {
@@ -265,9 +265,10 @@ receivers:
 	silenceParams := silence.NewPostSilencesParams()
 	silenceParams.Silence = &ps
 
+	// With newer prometheus/common (v0.63+), UTF-8 label names are accepted
+	// by default even in classic mode, so this should succeed.
 	_, err := am.Client().Silence.PostSilences(silenceParams)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid silence: invalid label matcher"))
+	require.NoError(t, err)
 }
 
 func TestSendAlertsToUTF8Route(t *testing.T) {
