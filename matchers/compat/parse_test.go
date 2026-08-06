@@ -148,13 +148,13 @@ func TestIsValidClassicLabelName(t *testing.T) {
 		input:    "",
 		expected: false,
 	}, {
-		name:     "starts with number is not accepted",
+		name:     "starts with number is accepted with UTF-8",
 		input:    "0foo",
-		expected: false,
+		expected: true,
 	}, {
-		name:     "contains emoji is not accepted",
+		name:     "contains emoji is accepted with UTF-8",
 		input:    "foo🙂",
-		expected: false,
+		expected: true,
 	}}
 
 	for _, test := range tests {

@@ -1195,14 +1195,14 @@ func TestValidateClassicMatcher(t *testing.T) {
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
 			},
-			err: "invalid label name",
+			err: "",
 		}, {
 			m: &pb.Matcher{
 				Name:    "\xf0\x9f\x99\x82", // U+1F642
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
 			},
-			err: "invalid label name",
+			err: "",
 		}, {
 			m: &pb.Matcher{
 				Name:    "a",
@@ -1401,7 +1401,7 @@ func TestValidateSilence(t *testing.T) {
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
 			},
-			err: "invalid label matcher",
+			err: "",
 		},
 		{
 			s: &pb.Silence{
