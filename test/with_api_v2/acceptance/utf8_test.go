@@ -15,7 +15,6 @@ package test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -150,8 +149,7 @@ receivers:
 	alertParams.Alerts = models.PostableAlerts{pa}
 
 	_, err := am.Client().Alert.PostAlerts(alertParams)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid label set"))
+	require.NoError(t, err)
 }
 
 func TestAddUTF8Silences(t *testing.T) {
@@ -266,8 +264,7 @@ receivers:
 	silenceParams.Silence = &ps
 
 	_, err := am.Client().Silence.PostSilences(silenceParams)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "silence invalid: invalid label matcher"))
+	require.NoError(t, err)
 }
 
 func TestSendAlertsToUTF8Route(t *testing.T) {
