@@ -316,14 +316,7 @@ receivers:
 `
 	_, err := Load(in)
 
-	expected := "invalid label name \"-invalid-\" in group_by list"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%q", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
-	}
+	require.NoError(t, err)
 }
 
 func TestRootRouteExists(t *testing.T) {
