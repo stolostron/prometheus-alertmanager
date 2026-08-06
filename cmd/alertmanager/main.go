@@ -33,10 +33,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/common/promlog"
-	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
@@ -101,7 +100,6 @@ var (
 			Name: "alertmanager_inhibition_rules",
 			Help: "Number of configured inhibition rules.",
 		})
-	promlogConfig = promlog.Config{}
 )
 
 func init() {
@@ -111,7 +109,7 @@ func init() {
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
 	prometheus.MustRegister(configuredInhibitionRules)
-	prometheus.MustRegister(version.NewCollector("alertmanager"))
+	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
 }
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
@@ -167,16 +165,35 @@ func run() int {
 		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
 		label                  = kingpin.Flag("cluster.label", "The cluster label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages.").Default("").String()
 		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
+
+		logLevel  = kingpin.Flag("log.level", "Only log messages with the given severity or above. One of: [debug, info, warn, error]").Default("info").String()
+		logFormat = kingpin.Flag("log.format", "Output format of log messages. One of: [logfmt, json]").Default("logfmt").String()
 	)
 
-	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	kingpin.Parse()
 
-	logger := promlog.New(&promlogConfig)
+	var logger log.Logger
+	switch *logFormat {
+	case "json":
+		logger = log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
+	default:
+		logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
+	}
+	switch *logLevel {
+	case "debug":
+		logger = level.NewFilter(logger, level.AllowDebug())
+	case "warn":
+		logger = level.NewFilter(logger, level.AllowWarn())
+	case "error":
+		logger = level.NewFilter(logger, level.AllowError())
+	default:
+		logger = level.NewFilter(logger, level.AllowInfo())
+	}
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
