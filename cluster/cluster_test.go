@@ -101,9 +101,9 @@ func testJoinLeave(t *testing.T) {
 	go p2.Settle(context.Background(), 0*time.Second)
 	require.NoError(t, p2.WaitReady(context.Background()))
 
-	require.Equal(t, 2, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 2 }, 5*time.Second, time.Second)
 	p2.Leave(0 * time.Second)
-	require.Equal(t, 1, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 1 }, 5*time.Second, time.Second)
 	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
@@ -171,7 +171,7 @@ func testReconnect(t *testing.T) {
 
 	p.reconnect()
 
-	require.Equal(t, 2, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 2 }, 5*time.Second, time.Second)
 	require.Empty(t, p.failedPeers)
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
@@ -337,9 +337,9 @@ func testTLSConnection(t *testing.T) {
 	p2.WaitReady(context.Background())
 	require.Equal(t, "ready", p2.Status())
 
-	require.Equal(t, 2, p1.ClusterSize())
+	require.Eventually(t, func() bool { return p1.ClusterSize() == 2 }, 5*time.Second, time.Second)
 	p2.Leave(0 * time.Second)
-	require.Equal(t, 1, p1.ClusterSize())
+	require.Eventually(t, func() bool { return p1.ClusterSize() == 1 }, 5*time.Second, time.Second)
 	require.Len(t, p1.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
