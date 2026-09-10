@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:24-alpine
 
 ENV NODE_PATH="/usr/local/lib/node_modules"
 
