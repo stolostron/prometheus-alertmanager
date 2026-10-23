@@ -1003,25 +1003,25 @@ func TestEmailImplicitTLS(t *testing.T) {
 		{
 			name:             "force implicit_tls=true on port 587",
 			port:             "587",
-			forceImplicitTLS: ptrTo(true),
+			forceImplicitTLS: new(true),
 			expectImplicit:   true,
 		},
 		{
 			name:             "force implicit_tls=true on custom port",
 			port:             "8465",
-			forceImplicitTLS: ptrTo(true),
+			forceImplicitTLS: new(true),
 			expectImplicit:   true,
 		},
 		{
 			name:             "implicit_tls=false disables implicit TLS on port 465",
 			port:             "465",
-			forceImplicitTLS: ptrTo(false),
+			forceImplicitTLS: new(false),
 			expectImplicit:   false,
 		},
 		{
 			name:             "implicit_tls=false behaves like default on port 587",
 			port:             "587",
-			forceImplicitTLS: ptrTo(false),
+			forceImplicitTLS: new(false),
 			expectImplicit:   false,
 		},
 	}
@@ -1046,8 +1046,4 @@ func TestEmailImplicitTLS(t *testing.T) {
 				tt.expectImplicit, tt.port, tt.forceImplicitTLS)
 		})
 	}
-}
-
-func ptrTo(b bool) *bool {
-	return &b
 }

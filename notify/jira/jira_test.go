@@ -37,15 +37,7 @@ import (
 )
 
 func jiraStringDescription(v string) *jiraDescription {
-	return &jiraDescription{StringDescription: stringPtr(v)}
-}
-
-func stringPtr(v string) *string {
-	return &v
-}
-
-func boolPtr(v bool) *bool {
-	return &v
+	return &jiraDescription{StringDescription: new(v)}
 }
 
 func TestJiraRetry(t *testing.T) {
@@ -507,7 +499,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
+					Summary:     new("[FIRING:1] test (vm1 critical)"),
 					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
@@ -523,11 +515,11 @@ func TestJiraNotify(t *testing.T) {
 			cfg: &config.JiraConfig{
 				Summary: config.JiraFieldConfig{
 					Template:     `{{ template "jira.default.summary" . }}`,
-					EnableUpdate: boolPtr(false),
+					EnableUpdate: new(false),
 				},
 				Description: config.JiraFieldConfig{
 					Template:     `{{ template "jira.default.description" . }}`,
-					EnableUpdate: boolPtr(false),
+					EnableUpdate: new(false),
 				},
 				IssueType:         "{{ .CommonLabels.issue_type }}",
 				Project:           "{{ .CommonLabels.project }}",
@@ -556,7 +548,7 @@ func TestJiraNotify(t *testing.T) {
 					{
 						Key: "MONITORING-1",
 						Fields: &issueFields{
-							Summary:     stringPtr("Original Summary"),
+							Summary:     new("Original Summary"),
 							Description: jiraStringDescription("Original Description"),
 							Status: &issueStatus{
 								Name: "Open",
@@ -622,7 +614,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr("[FIRING:1] test (vm1 MINOR MONITORING critical)"),
+					Summary:     new("[FIRING:1] test (vm1 MINOR MONITORING critical)"),
 					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "MINOR"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
@@ -676,7 +668,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr(strings.Repeat("A", maxSummaryLenRunes-1) + "…"),
+					Summary:     new(strings.Repeat("A", maxSummaryLenRunes-1) + "…"),
 					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
@@ -742,7 +734,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr("[FIRING:1] test (vm1)"),
+					Summary:     new("[FIRING:1] test (vm1)"),
 					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
@@ -797,7 +789,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr("[RESOLVED] test (vm1)"),
+					Summary:     new("[RESOLVED] test (vm1)"),
 					Description: jiraStringDescription("\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
@@ -851,7 +843,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     stringPtr("[FIRING:1] test (vm1)"),
+					Summary:     new("[FIRING:1] test (vm1)"),
 					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
