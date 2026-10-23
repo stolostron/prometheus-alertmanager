@@ -163,7 +163,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 func TestPagerDutyTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -314,7 +314,6 @@ func TestErrDetails(t *testing.T) {
 			exp: "",
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			err := errDetails(tc.status, tc.body)
 			require.Contains(t, err, tc.exp)
