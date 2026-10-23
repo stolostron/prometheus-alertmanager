@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/rand"
 	"os"
 	"sync"
@@ -171,9 +172,7 @@ type state map[string]*pb.MeshEntry
 
 func (s state) clone() state {
 	c := make(state, len(s))
-	for k, v := range s {
-		c[k] = v
-	}
+	maps.Copy(c, s)
 	return c
 }
 
