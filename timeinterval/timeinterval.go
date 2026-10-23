@@ -204,7 +204,7 @@ var monthsInv = map[int]string{
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for Location.
-func (tz *Location) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (tz *Location) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -232,7 +232,7 @@ func (tz *Location) UnmarshalJSON(in []byte) error {
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for WeekdayRange.
-func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *WeekdayRange) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -259,7 +259,7 @@ func (r *WeekdayRange) UnmarshalJSON(in []byte) error {
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for DayOfMonthRange.
-func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -302,7 +302,7 @@ func (r *DayOfMonthRange) UnmarshalJSON(in []byte) error {
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for MonthRange.
-func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *MonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -325,7 +325,7 @@ func (r *MonthRange) UnmarshalJSON(in []byte) error {
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for YearRange.
-func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *YearRange) UnmarshalYAML(unmarshal func(any) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -346,7 +346,7 @@ func (r *YearRange) UnmarshalJSON(in []byte) error {
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for TimeRanges.
-func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (tr *TimeRange) UnmarshalYAML(unmarshal func(any) error) error {
 	var y yamlTimeRange
 	if err := unmarshal(&y); err != nil {
 		return err
@@ -376,7 +376,7 @@ func (tr *TimeRange) UnmarshalJSON(in []byte) error {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for WeekdayRange.
-func (r WeekdayRange) MarshalYAML() (interface{}, error) {
+func (r WeekdayRange) MarshalYAML() (any, error) {
 	bytes, err := r.MarshalText()
 	return string(bytes), err
 }
@@ -401,7 +401,7 @@ func (r WeekdayRange) MarshalText() ([]byte, error) {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for TimeRange.
-func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
+func (tr TimeRange) MarshalYAML() (out any, err error) {
 	startHr := tr.StartMinute / 60
 	endHr := tr.EndMinute / 60
 	startMin := tr.StartMinute % 60
@@ -411,7 +411,7 @@ func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
 	endStr := fmt.Sprintf("%02d:%02d", endHr, endMin)
 
 	yTr := yamlTimeRange{startStr, endStr}
-	return interface{}(yTr), err
+	return any(yTr), err
 }
 
 // MarshalJSON implements the json.Marshaler interface for TimeRange.
@@ -438,7 +438,7 @@ func (tz Location) MarshalText() ([]byte, error) {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for Location.
-func (tz Location) MarshalYAML() (interface{}, error) {
+func (tz Location) MarshalYAML() (any, error) {
 	bytes, err := tz.MarshalText()
 	return string(bytes), err
 }
@@ -460,7 +460,7 @@ func (ir InclusiveRange) MarshalText() ([]byte, error) {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
-func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
+func (ir InclusiveRange) MarshalYAML() (any, error) {
 	bytes, err := ir.MarshalText()
 	return string(bytes), err
 }
