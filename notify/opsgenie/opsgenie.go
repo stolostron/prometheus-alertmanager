@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
@@ -140,9 +141,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	details := make(map[string]string)
 
-	for k, v := range data.CommonLabels {
-		details[k] = v
-	}
+	maps.Copy(details, data.CommonLabels)
 
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
