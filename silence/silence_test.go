@@ -1607,7 +1607,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	s.st = state{}
-	for i := 0; i < numSilences; i++ {
+	for i := range numSilences {
 		id := fmt.Sprint("ID", i)
 		// Patterns also contain the ID to bust any caches that might be used under the hood.
 		patA := "A{4}|" + id

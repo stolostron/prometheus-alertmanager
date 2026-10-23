@@ -95,7 +95,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 	alertsToInsert := []*types.Alert{}
 	// Exhaust alert channel
-	for i := 0; i < alertChannelLength+1; i++ {
+	for i := range alertChannelLength + 1 {
 		alertsToInsert = append(alertsToInsert, &types.Alert{
 			Alert: model.Alert{
 				// Make sure the fingerprints differ
@@ -163,8 +163,7 @@ func TestAlertsPut(t *testing.T) {
 func TestAlertsSubscribe(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -188,7 +187,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		wg     sync.WaitGroup
 	)
 	wg.Add(nb)
-	for i := 0; i < nb; i++ {
+	for i := range nb {
 		go func(i int) {
 			defer wg.Done()
 

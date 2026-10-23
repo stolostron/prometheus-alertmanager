@@ -194,7 +194,7 @@ type WebexConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWebexConfig
 	type plain WebexConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -225,7 +225,7 @@ type DiscordConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultDiscordConfig
 	type plain DiscordConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -265,7 +265,7 @@ type EmailConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultEmailConfig
 	type plain EmailConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -326,7 +326,7 @@ type PagerdutyImage struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPagerdutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -369,7 +369,7 @@ type SlackAction struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
-func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackAction
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -404,7 +404,7 @@ type SlackConfirmationField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField.
-func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackConfirmationField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -426,7 +426,7 @@ type SlackField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackField.
-func (c *SlackField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -473,7 +473,7 @@ type SlackConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -504,7 +504,7 @@ type WebhookConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWebhookConfig
 	type plain WebhookConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -541,7 +541,7 @@ const wechatValidTypesRe = `^(text|markdown)$`
 var wechatTypeMatcher = regexp.MustCompile(wechatValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -586,7 +586,7 @@ const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
 var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultOpsGenieConfig
 	type plain OpsGenieConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -646,7 +646,7 @@ type VictorOpsConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultVictorOpsConfig
 	type plain VictorOpsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -707,7 +707,7 @@ type PushoverConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPushoverConfig
 	type plain PushoverConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -744,7 +744,7 @@ type SNSConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSNSConfig
 	type plain SNSConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -772,7 +772,7 @@ type TelegramConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultTelegramConfig
 	type plain TelegramConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -807,7 +807,7 @@ type MSTeamsConfig struct {
 	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
