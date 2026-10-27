@@ -106,8 +106,8 @@ func (n *Notifier) createSNSClient(tmpl func(string) string, tmplErr *error) (*s
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region:   aws.String(n.conf.Sigv4.Region),
-			Endpoint: aws.String(tmpl(n.conf.APIUrl)),
+			Region:   new(n.conf.Sigv4.Region),
+			Endpoint: new(tmpl(n.conf.APIUrl)),
 		},
 		Profile: n.conf.Sigv4.Profile,
 	})
@@ -126,7 +126,7 @@ func (n *Notifier) createSNSClient(tmpl func(string) string, tmplErr *error) (*s
 			// If we have set the API URL we need to create a new session to get the STS Credentials.
 			stsSess, err = session.NewSessionWithOptions(session.Options{
 				Config: aws.Config{
-					Region:      aws.String(n.conf.Sigv4.Region),
+					Region:      new(n.conf.Sigv4.Region),
 					Credentials: creds,
 				},
 				Profile: n.conf.Sigv4.Profile,
@@ -196,7 +196,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	}
 	if isTrunc {
 		// If we truncated the message we need to add a message attribute showing that it was truncated.
-		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
+		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: new("String"), StringValue: new("true")}
 	}
 
 	publishInput.SetMessage(messageToSend)
@@ -229,7 +229,7 @@ func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]
 	// Convert the given attributes map into the AWS Message Attributes Format.
 	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
 	for k, v := range n.conf.Attributes {
-		attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
+		attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: new("String"), StringValue: new(tmpl(v))}
 	}
 	return attributes
 }
