@@ -617,7 +617,7 @@ fields:
 		{
 			Title: "first",
 			Value: "hello",
-			Short: newBoolPointer(true),
+			Short: new(true),
 		},
 		{
 			Title: "second",
@@ -627,7 +627,7 @@ fields:
 		{
 			Title: "third",
 			Value: "slack field test",
-			Short: newBoolPointer(false),
+			Short: new(false),
 		},
 	}
 
@@ -1040,6 +1040,3 @@ parse_mode: invalid
 	}
 }
 
-func newBoolPointer(b bool) *bool {
-	return &b
-}
