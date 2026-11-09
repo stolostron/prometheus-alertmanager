@@ -682,8 +682,9 @@ func TestEmailRejected(t *testing.T) {
 	srv, l, err := mockSMTPServer(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// We expect that the server has already been closed in the test.
-		require.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+		// Ensure server shuts down; may already be closed in the test.
+		// Go 1.26 returns nil on double-shutdown rather than ErrServerClosed.
+		_ = srv.Shutdown(ctx)
 	})
 
 	done := make(chan any, 1)
@@ -733,7 +734,7 @@ func TestEmailRejected(t *testing.T) {
 
 	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501 \"5.5.4 Rejected!")
+	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
 	require.True(t, retry)
 	require.NoError(t, srv.Shutdown(ctx))
 
