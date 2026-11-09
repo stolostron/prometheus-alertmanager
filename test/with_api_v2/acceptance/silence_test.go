@@ -181,4 +181,3 @@ receivers:
 
 	t.Log(co.Check())
 }
-
