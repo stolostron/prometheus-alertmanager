@@ -80,7 +80,7 @@ type mailDev struct {
 	*url.URL
 }
 
-func (m *mailDev) UnmarshalYAML(unmarshal func(any) error) error {
+func (m *mailDev) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -297,6 +297,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 			hasEmail: true,
 		},
 	} {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			if len(tc.errMsg) == 0 {
 				t.Fatal("please define the expected error message")
@@ -570,6 +571,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			retry:  true,
 		},
 	} {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			emailCfg := &config.EmailConfig{
 				Smarthost: c.Smarthost,
@@ -673,9 +675,8 @@ func TestEmailRejected(t *testing.T) {
 	srv, l, err := mockSMTPServer(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Ensure server shuts down; may already be closed in the test.
-		// Go 1.26 returns nil on double-shutdown rather than ErrServerClosed.
-		_ = srv.Shutdown(ctx)
+		// We expect that the server has already been closed in the test.
+		require.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 	})
 
 	done := make(chan any, 1)
@@ -725,7 +726,7 @@ func TestEmailRejected(t *testing.T) {
 
 	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
+	require.ErrorContains(t, err, "501 \"5.5.4 Rejected!")
 	require.True(t, retry)
 	require.NoError(t, srv.Shutdown(ctx))
 
