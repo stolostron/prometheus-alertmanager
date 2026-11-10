@@ -61,16 +61,16 @@ receivers:
 	now := time.Now()
 	ps := models.PostableSilence{
 		Silence: models.Silence{
-			Comment:   new("test"),
-			CreatedBy: new("test"),
+			Comment:   stringPtr("test"),
+			CreatedBy: stringPtr("test"),
 			Matchers: models.Matchers{{
-				Name:    new("foo"),
-				IsEqual: new(true),
-				IsRegex: new(false),
-				Value:   new("bar"),
+				Name:    stringPtr("foo"),
+				IsEqual: boolPtr(true),
+				IsRegex: boolPtr(false),
+				Value:   stringPtr("bar"),
 			}},
-			StartsAt: new(strfmt.DateTime(now)),
-			EndsAt:   new(strfmt.DateTime(now.Add(24 * time.Hour))),
+			StartsAt: dateTimePtr(strfmt.DateTime(now)),
+			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
 		},
 	}
 	silenceParams := silence.NewPostSilencesParams()
@@ -182,17 +182,14 @@ receivers:
 	t.Log(co.Check())
 }
 
-//go:fix inline
 func boolPtr(b bool) *bool {
-	return new(b)
+	return &b
 }
 
-//go:fix inline
 func stringPtr(s string) *string {
-	return new(s)
+	return &s
 }
 
-//go:fix inline
 func dateTimePtr(t strfmt.DateTime) *strfmt.DateTime {
-	return new(t)
+	return &t
 }
