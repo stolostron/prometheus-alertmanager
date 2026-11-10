@@ -182,18 +182,18 @@ receivers:
 	// Add a silence with UTF-8 label matchers.
 	now := time.Now()
 	matchers := models.Matchers{{
-		Name:    new("fooΣ"),
-		IsEqual: new(true),
-		IsRegex: new(false),
-		Value:   new("bar🙂"),
+		Name:    stringPtr("fooΣ"),
+		IsEqual: boolPtr(true),
+		IsRegex: boolPtr(false),
+		Value:   stringPtr("bar🙂"),
 	}}
 	ps := models.PostableSilence{
 		Silence: models.Silence{
-			Comment:   new("test"),
-			CreatedBy: new("test"),
+			Comment:   stringPtr("test"),
+			CreatedBy: stringPtr("test"),
 			Matchers:  matchers,
-			StartsAt:  new(strfmt.DateTime(now)),
-			EndsAt:    new(strfmt.DateTime(now.Add(24 * time.Hour))),
+			StartsAt:  dateTimePtr(strfmt.DateTime(now)),
+			EndsAt:    dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
 		},
 	}
 	postSilenceParams := silence.NewPostSilencesParams()
@@ -248,16 +248,16 @@ receivers:
 	now := time.Now()
 	ps := models.PostableSilence{
 		Silence: models.Silence{
-			Comment:   new("test"),
-			CreatedBy: new("test"),
+			Comment:   stringPtr("test"),
+			CreatedBy: stringPtr("test"),
 			Matchers: models.Matchers{{
-				Name:    new("fooΣ"),
-				IsEqual: new(true),
-				IsRegex: new(false),
-				Value:   new("bar🙂"),
+				Name:    stringPtr("fooΣ"),
+				IsEqual: boolPtr(true),
+				IsRegex: boolPtr(false),
+				Value:   stringPtr("bar🙂"),
 			}},
-			StartsAt: new(strfmt.DateTime(now)),
-			EndsAt:   new(strfmt.DateTime(now.Add(24 * time.Hour))),
+			StartsAt: dateTimePtr(strfmt.DateTime(now)),
+			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
 		},
 	}
 	silenceParams := silence.NewPostSilencesParams()
