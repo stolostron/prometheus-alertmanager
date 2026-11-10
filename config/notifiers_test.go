@@ -617,7 +617,7 @@ fields:
 		{
 			Title: "first",
 			Value: "hello",
-			Short: new(true),
+			Short: newBoolPointer(true),
 		},
 		{
 			Title: "second",
@@ -627,7 +627,7 @@ fields:
 		{
 			Title: "third",
 			Value: "slack field test",
-			Short: new(false),
+			Short: newBoolPointer(false),
 		},
 	}
 
@@ -1038,4 +1038,8 @@ parse_mode: invalid
 			require.Equal(t, tt.expected, err)
 		})
 	}
+}
+
+func newBoolPointer(b bool) *bool {
+	return &b
 }
