@@ -682,9 +682,8 @@ func TestEmailRejected(t *testing.T) {
 	srv, l, err := mockSMTPServer(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Ensure server shuts down; may already be closed in the test.
-		// Go 1.26 returns nil on double-shutdown rather than ErrServerClosed.
-		_ = srv.Shutdown(ctx)
+		// We expect that the server has already been closed in the test.
+		require.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 	})
 
 	done := make(chan any, 1)
@@ -734,7 +733,7 @@ func TestEmailRejected(t *testing.T) {
 
 	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
+	require.ErrorContains(t, err, "501 \"5.5.4 Rejected!")
 	require.True(t, retry)
 	require.NoError(t, srv.Shutdown(ctx))
 
@@ -1004,25 +1003,25 @@ func TestEmailImplicitTLS(t *testing.T) {
 		{
 			name:             "force implicit_tls=true on port 587",
 			port:             "587",
-			forceImplicitTLS: new(true),
+			forceImplicitTLS: ptrTo(true),
 			expectImplicit:   true,
 		},
 		{
 			name:             "force implicit_tls=true on custom port",
 			port:             "8465",
-			forceImplicitTLS: new(true),
+			forceImplicitTLS: ptrTo(true),
 			expectImplicit:   true,
 		},
 		{
 			name:             "implicit_tls=false disables implicit TLS on port 465",
 			port:             "465",
-			forceImplicitTLS: new(false),
+			forceImplicitTLS: ptrTo(false),
 			expectImplicit:   false,
 		},
 		{
 			name:             "implicit_tls=false behaves like default on port 587",
 			port:             "587",
-			forceImplicitTLS: new(false),
+			forceImplicitTLS: ptrTo(false),
 			expectImplicit:   false,
 		},
 	}
@@ -1047,4 +1046,8 @@ func TestEmailImplicitTLS(t *testing.T) {
 				tt.expectImplicit, tt.port, tt.forceImplicitTLS)
 		})
 	}
+}
+
+func ptrTo(b bool) *bool {
+	return &b
 }
