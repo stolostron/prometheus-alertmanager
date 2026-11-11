@@ -4,7 +4,6 @@ linters:
     - depguard
     - errorlint
     - misspell
-    - modernize
     - revive
   disable:
     - staticcheck
@@ -62,12 +61,6 @@ linters:
       - linters:
           - errcheck
         path: _test.go
-      - linters:
-          - modernize
-        text: "omitzero: Omitempty has no effect on nested struct fields"
-      - linters:
-          - modernize
-        text: "waitgroupgo:"
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

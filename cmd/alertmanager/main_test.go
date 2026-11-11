@@ -79,6 +79,7 @@ func TestExternalURL(t *testing.T) {
 			err:      true,
 		},
 	} {
+		tc := tc
 		if tc.hostnameResolver == nil {
 			tc.hostnameResolver = func() (string, error) {
 				return hostname, nil

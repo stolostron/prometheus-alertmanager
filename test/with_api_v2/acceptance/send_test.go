@@ -286,7 +286,7 @@ receivers:
 func TestResolved(t *testing.T) {
 	t.Parallel()
 
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		conf := `
 global:
   resolve_timeout: 10s

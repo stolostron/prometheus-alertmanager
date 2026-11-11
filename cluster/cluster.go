@@ -206,7 +206,10 @@ func Create(
 
 	p.register(reg, name.String())
 
-	retransmit := max(len(knownPeers)/2, 3)
+	retransmit := len(knownPeers) / 2
+	if retransmit < 3 {
+		retransmit = 3
+	}
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
@@ -616,11 +619,11 @@ func (p *Peer) Status() string {
 
 // Info returns a JSON-serializable dump of cluster state.
 // Useful for debug.
-func (p *Peer) Info() map[string]any {
+func (p *Peer) Info() map[string]interface{} {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	return map[string]any{
+	return map[string]interface{}{
 		"self":    p.mlist.LocalNode(),
 		"members": p.mlist.Members(),
 	}

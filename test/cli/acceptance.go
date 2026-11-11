@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -136,7 +135,7 @@ func (t *AcceptanceTest) Do(at float64, f func()) {
 func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *AlertmanagerCluster {
 	amc := AlertmanagerCluster{}
 
-	for range size {
+	for i := 0; i < size; i++ {
 		am := &Alertmanager{
 			t:    t,
 			opts: t.opts,
@@ -353,7 +352,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		resp, err := http.Get(am.getURL("/"))
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
@@ -380,7 +379,7 @@ func (am *Alertmanager) WaitForCluster(size int) error {
 	var status general.GetStatusOK
 
 	// Poll for 2s
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		status, err := am.clientV2.General.GetStatus(params)
 		if err != nil {
 			return err
@@ -485,7 +484,9 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
 	labels := make(models.LabelSet, len(alert.labels))
-	maps.Copy(labels, alert.labels)
+	for k, v := range alert.labels {
+		labels[k] = v
+	}
 	if omitEquals {
 		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.

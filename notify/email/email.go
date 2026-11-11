@@ -80,7 +80,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	}
 
 	err := &types.MultiError{}
-	for mech := range strings.SplitSeq(mechs, " ") {
+	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
 			secret := string(n.conf.AuthSecret)
