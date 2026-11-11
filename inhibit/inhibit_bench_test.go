@@ -119,7 +119,7 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		},
 		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
 			var alerts []types.Alert
-			for i := range numInhibitingAlerts {
+			for i := 0; i < numInhibitingAlerts; i++ {
 				alerts = append(alerts, types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{

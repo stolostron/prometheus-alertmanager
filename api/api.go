@@ -112,7 +112,10 @@ func New(opts Options) (*API, error) {
 	}
 	concurrency := opts.Concurrency
 	if concurrency < 1 {
-		concurrency = max(runtime.GOMAXPROCS(0), 8)
+		concurrency = runtime.GOMAXPROCS(0)
+		if concurrency < 8 {
+			concurrency = 8
+		}
 	}
 
 	v2, err := apiv2.NewAPI(

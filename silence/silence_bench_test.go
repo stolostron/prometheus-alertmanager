@@ -57,7 +57,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	now := clock.Now()
 
 	var silenceIDs []string
-	for range n {
+	for i := 0; i < n; i++ {
 		s := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{{
 				Type:    silencepb.Matcher_EQUAL,
@@ -115,7 +115,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	s.st = state{}
-	for i := range numSilences {
+	for i := 0; i < numSilences; i++ {
 		id := strconv.Itoa(i)
 		// Include an offset to avoid optimizations.
 		patA := "A{4}|" + id
