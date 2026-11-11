@@ -69,6 +69,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			err: true,
 		},
 	} {
+		tc := tc
 		t.Run("", func(t *testing.T) {
 			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
 			if tc.err {

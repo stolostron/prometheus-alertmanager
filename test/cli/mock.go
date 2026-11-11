@@ -16,7 +16,6 @@ package test
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net"
 	"net/http"
 	"reflect"
@@ -122,7 +121,7 @@ type TestAlert struct {
 
 // Alert creates a new alert declaration with the given key/value pairs
 // as identifying labels.
-func Alert(keyval ...any) *TestAlert {
+func Alert(keyval ...interface{}) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -166,7 +165,7 @@ func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.GettableAlert {
 }
 
 // Annotate the alert with the given key/value pairs.
-func (a *TestAlert) Annotate(keyval ...any) *TestAlert {
+func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -289,8 +288,12 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			labels      = models.LabelSet{}
 			annotations = models.LabelSet{}
 		)
-		maps.Copy(labels, a.Labels)
-		maps.Copy(annotations, a.Annotations)
+		for k, v := range a.Labels {
+			labels[k] = v
+		}
+		for k, v := range a.Annotations {
+			annotations[k] = v
+		}
 
 		start := strfmt.DateTime(a.StartsAt)
 		end := strfmt.DateTime(a.EndsAt)
