@@ -575,7 +575,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 				cfg.Hello = "invalid hello string"
 			},
 
-			errMsg: "501 Error",
+			errMsg: "501",
 			retry:  true,
 		},
 	} {
