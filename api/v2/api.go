@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -464,7 +463,13 @@ func removeEmptyLabels(ls prometheus_model.LabelSet) {
 }
 
 func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
-	return slices.ContainsFunc(receivers, filter.MatchString)
+	for _, r := range receivers {
+		if filter.MatchString(r) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*labels.Matcher) bool {

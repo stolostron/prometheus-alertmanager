@@ -278,6 +278,7 @@ func TestData(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run("", func(t *testing.T) {
 			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.alerts...)
 			require.Equal(t, tc.exp, got)
@@ -292,7 +293,7 @@ func TestTemplateExpansion(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 		in    string
-		data  any
+		data  interface{}
 		html  bool
 
 		exp  string
@@ -385,6 +386,7 @@ func TestTemplateExpansion(t *testing.T) {
 			exp: "[key2 key4]",
 		},
 	} {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString
 			if tc.html {
@@ -412,7 +414,7 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 		options []Option
 		title   string
 		in      string
-		data    any
+		data    interface{}
 		html    bool
 
 		exp  string
@@ -446,6 +448,7 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 			exp: "bar",
 		},
 	} {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			tmpl, err := FromGlobs([]string{}, tc.options...)
 			require.NoError(t, err)
@@ -472,7 +475,7 @@ func TestTemplateFuncs(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 		in    string
-		data  any
+		data  interface{}
 		exp   string
 	}{{
 		title: "Template using toUpper",
@@ -504,9 +507,10 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
 		exp:   "ABc",
 	}} {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
-			for range 10 {
+			for i := 0; i < 10; i++ {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
