@@ -16,7 +16,6 @@ package parse
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"unicode/utf8"
 )
@@ -74,7 +73,12 @@ func (t token) isEOF() bool {
 
 // isOneOf returns true if the token is one of the specified kinds.
 func (t token) isOneOf(kinds ...tokenKind) bool {
-	return slices.Contains(kinds, t.kind)
+	for _, k := range kinds {
+		if k == t.kind {
+			return true
+		}
+	}
+	return false
 }
 
 // unquote the value in token. If unquoted returns it unmodified.

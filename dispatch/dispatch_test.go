@@ -163,7 +163,7 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		// New alert should come in after group interval.
 		ag.insert(a3)
 
@@ -213,7 +213,7 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		// New alert should come in after group interval.
 		ag.insert(a3)
 
@@ -702,7 +702,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	defer dispatcher.Stop()
 
 	// Push all alerts.
-	for i := range numAlerts {
+	for i := 0; i < numAlerts; i++ {
 		alert := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
 		require.NoError(t, alerts.Put(alert))
 	}
