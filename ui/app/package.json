@@ -12,7 +12,7 @@
     "elm-test": "0.19.1-revision6",
     "vite": "^8.0.0",
     "vite-plugin-compression2": "^2.5.1",
-    "vite-plugin-elm": "^3.0.1"
+    "vite-plugin-elm": "^4.0.0"
   },
   "dependencies": {
     "bootstrap": "^4.6.2",
